@@ -1,8 +1,8 @@
-from fastapi import FastAPI, Query
-from typing import Optional, List, Dict
+from fastapi import FastAPI, Query, HTTPException, Request
+from typing import Optional, List, Dict, Any
 from pydantic import BaseModel
 import requests
-import os
+import json
 
 app = FastAPI()
 
@@ -12,18 +12,26 @@ BEARER_TOKEN = "clz/cKSKWVF5NXa7poTS9RiN5S4QCGhjGxo0fE1QiB66qlfk1pGk3Pl5HFGT5y5I
 class SearchResultItem(BaseModel):
     id: str
     title: Optional[str] = None
-    categories: List[str]
-    properties: dict
+    properties: Dict[str, Any]
+
+class SearchResponse(BaseModel):
+    debug_url: str
+    results: List[SearchResultItem]
+
 
 @app.get("/search", response_model=List[SearchResultItem])
 def search_documents(
+    request: Request,
     repository_id: str,
-    objectdefinitionids: List[str] = Query(...),
-    properties: Optional[Dict[str, List[str]]] = None,
+    objectdefinitionids: List[str] = Query(..., description="List of document types (e.g. XAD04)"),
+    properties: Optional[str] = Query(
+        None,
+        description='A JSON string of properties, e.g. {"property_document_id": ["UF00083745"]}'
+    ),
     page: int = 1,
     page_size: int = 25
 ):
-    # Prepare query parameters as JSON-encoded strings
+    # Build the query parameters
     query_params = {
         "objectdefinitionids": json.dumps(objectdefinitionids),
         "page": page,
@@ -31,7 +39,11 @@ def search_documents(
     }
 
     if properties:
-        query_params["properties"] = json.dumps(properties)
+        try:
+            properties_dict = json.loads(properties)
+            query_params["properties"] = json.dumps(properties_dict)
+        except json.JSONDecodeError:
+            raise HTTPException(status_code=400, detail="Invalid JSON in 'properties' parameter")
 
     headers = {
         "Authorization": f"Bearer {BEARER_TOKEN}"
@@ -45,14 +57,27 @@ def search_documents(
     except requests.exceptions.RequestException as e:
         raise HTTPException(status_code=500, detail=f"DMS search failed: {str(e)}")
 
-    results = response.json()
-    items = []
+    try:
+        data = response.json()
+    except Exception:
+        raise HTTPException(status_code=500, detail="DMS did not return valid JSON")
 
-    for item in results.get("items", []):
+    # Construct full debug URL
+    composed_url = f"{search_url}?" + "&".join(
+        f"{key}={requests.utils.quote(str(val))}" for key, val in query_params.items()
+    )
+
+    # Parse results
+    items = []
+    for item in data.get("items", []):
+        props = {
+            p["key"]: p["value"]
+            for p in item.get("properties", [])
+        }
         items.append(SearchResultItem(
             id=item["id"],
             title=item.get("displayValue"),
-            properties={p["key"]: p["value"] for p in item.get("properties", [])}
+            properties=props
         ))
 
-    return items
+    return SearchResponse(debug_url=composed_url, results=items)
