@@ -1,5 +1,5 @@
 from fastapi import FastAPI, Query
-from typing import Optional, List
+from typing import Optional, List, Dict
 from pydantic import BaseModel
 import requests
 import os
