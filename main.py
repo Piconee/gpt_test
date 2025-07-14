@@ -68,11 +68,10 @@ def search_documents(
     )
 
     items = []
-    items_raw = data.get("items", {})
-    for item in items_raw:
+    for item in data.get("items", []):
         props = {
             p["key"]: p["value"]
-            for p in item.get("displayProperties", [])
+            for p in item.get("properties", [])
         }
         items.append(SearchResultItem(
             id=item.get("id"),
@@ -80,4 +79,4 @@ def search_documents(
             properties=props
         ))
 
-    return SearchResponse(debug_url=composed_url, results=items)
+    return SearchResponse(debug_url=composed_url, items=items)
