@@ -70,7 +70,7 @@ def search_documents(
     items = []
     for item in data.get("items", []):
         props = {}
-        for p in item.get("properties", []):
+        for p in item.get("displayProperties", []):
             key = p.get("key")
             value = p.get("value")
             if key is not None:
