@@ -23,13 +23,13 @@ class SearchResponse(BaseModel):
 def search_documents(
     request: Request,
     repository_id: str,
-    objectdefinitionids: List[str] = Query(..., description="List of document types (e.g. XAD04)"),
+    objectdefinitionids: Optional[List[str]] = Query(..., description="List of document types (e.g. XAD04)"),
     properties: Optional[str] = Query(
         None,
         description='A JSON string of properties, e.g. {"property_document_id": ["UF00083745"]}'
     ),
-    page: int = 1,
-    page_size: int = 25
+    page: Optional[int] = 1,
+    page_size: Optional[int] = 25
 ):
     # Build the query params for the real DMS API
     query_params = {
@@ -68,10 +68,11 @@ def search_documents(
     )
 
     items = []
-    for item in data.get("items", []):
+    items_raw = data.get("results", {}).get("items", [])
+    for item in items_raw:
         props = {
             p["key"]: p["value"]
-            for p in item.get("properties", [])
+            for p in item.get("displayProperties", [])
         }
         items.append(SearchResultItem(
             id=item.get("id"),
