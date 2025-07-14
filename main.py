@@ -66,6 +66,7 @@ def search_documents(
     composed_url = f"{search_url}?" + "&".join(
         f"{key}={requests.utils.quote(str(val))}" for key, val in query_params.items()
     )
+    print(composed_url)
 
     # Parse results
     items = []
@@ -79,5 +80,5 @@ def search_documents(
             title=item.get("displayValue"),
             properties=props
         ))
-
+    print(SearchResponse(debug_url=composed_url, results=items).model_dump())
     return SearchResponse(debug_url=composed_url, results=items)
