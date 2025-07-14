@@ -18,47 +18,41 @@ class SearchResultItem(BaseModel):
 @app.get("/search", response_model=List[SearchResultItem])
 def search_documents(
     repository_id: str,
-    query: Optional[str] = None,
-    source_id: Optional[str] = None,
-    tags: Optional[List[str]] = Query(None),
-    from_date: Optional[str] = None,  # Format: YYYY-MM-DD
-    to_date: Optional[str] = None,
+    objectdefinitionids: List[str] = Query(...),
+    properties: Optional[Dict[str, List[str]]] = None,
     page: int = 1,
-    page_size: int = 10
+    page_size: int = 25
 ):
-    # Build query params
-    params = {
-        "searchFulltext": query,
-        "mappingSourceId": source_id,
+    # Prepare query parameters as JSON-encoded strings
+    query_params = {
+        "objectdefinitionids": json.dumps(objectdefinitionids),
         "page": page,
         "pageSize": page_size
     }
 
-    # Optional sourceProperties filtering (example structure)
-    if tags:
-        params["sourceproperties"] = {
-            "tags": tags  # Only if this is a valid mapped property
-        }
+    if properties:
+        query_params["properties"] = json.dumps(properties)
 
     headers = {
         "Authorization": f"Bearer {BEARER_TOKEN}"
     }
 
-    dms_url = f"{DMS_BASE_URL}/r/{repository_id}/srm"
+    search_url = f"{DMS_BASE_URL}/r/{repository_id}/sr/"
 
-    response = requests.get(dms_url, headers=headers, params=params)
+    try:
+        response = requests.get(search_url, headers=headers, params=query_params)
+        response.raise_for_status()
+    except requests.exceptions.RequestException as e:
+        raise HTTPException(status_code=500, detail=f"DMS search failed: {str(e)}")
 
-    if not response.ok:
-        return [{"id": "error", "title": "DMS Error", "categories": [], "properties": {"reason": response.text}}]
-
-    data = response.json()
+    results = response.json()
     items = []
 
-    for item in data.get("items", []):
+    for item in results.get("items", []):
         items.append(SearchResultItem(
             id=item["id"],
-            categories=item.get("sourceCategories", []),
-            properties={p["key"]: p["value"] for p in item.get("sourceProperties", [])}
+            title=item.get("displayValue"),
+            properties={p["key"]: p["value"] for p in item.get("properties", [])}
         ))
 
     return items
