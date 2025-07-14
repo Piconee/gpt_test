@@ -9,6 +9,7 @@ app = FastAPI()
 DMS_BASE_URL = "https://alpin-dev.d-velop.cloud/dms"  # Replace with real base URL
 BEARER_TOKEN = "clz/cKSKWVF5NXa7poTS9RiN5S4QCGhjGxo0fE1QiB66qlfk1pGk3Pl5HFGT5y5IyW8c9jAMh7NefRWnFrT6FKLB3I06jTAE397KcEyPCnw=&_z_A0V5ayCTcDeHVN_zAEnmxEkZeE6im4OH05NlT0dh1poy0CbcKF_U1dq8-455l2Y3q4Sp-150HTIRGLRb_KTuaV5g0qQZW"  # Replace with your actual token
 
+# Response models
 class SearchResultItem(BaseModel):
     id: str
     title: Optional[str] = None
@@ -18,8 +19,7 @@ class SearchResponse(BaseModel):
     debug_url: str
     results: List[SearchResultItem]
 
-
-@app.get("/search", response_model=List[SearchResultItem])
+@app.get("/search", response_model=SearchResponse)
 def search_documents(
     request: Request,
     repository_id: str,
@@ -31,7 +31,7 @@ def search_documents(
     page: int = 1,
     page_size: int = 25
 ):
-    # Build the query parameters
+    # Build the query params for the real DMS API
     query_params = {
         "objectdefinitionids": json.dumps(objectdefinitionids),
         "page": page,
@@ -40,8 +40,8 @@ def search_documents(
 
     if properties:
         try:
-            properties_dict = json.loads(properties)
-            query_params["properties"] = json.dumps(properties_dict)
+            props_dict = json.loads(properties)
+            query_params["properties"] = json.dumps(props_dict)
         except json.JSONDecodeError:
             raise HTTPException(status_code=400, detail="Invalid JSON in 'properties' parameter")
 
@@ -49,26 +49,24 @@ def search_documents(
         "Authorization": f"Bearer {BEARER_TOKEN}"
     }
 
-    search_url = f"{DMS_BASE_URL}/r/{repository_id}/sr/"
+    dms_url = f"{DMS_BASE_URL}/r/{repository_id}/sr/"
 
     try:
-        response = requests.get(search_url, headers=headers, params=query_params)
+        response = requests.get(dms_url, headers=headers, params=query_params)
         response.raise_for_status()
     except requests.exceptions.RequestException as e:
-        raise HTTPException(status_code=500, detail=f"DMS search failed: {str(e)}")
+        raise HTTPException(status_code=502, detail=f"DMS search failed: {str(e)}")
 
     try:
         data = response.json()
     except Exception:
-        raise HTTPException(status_code=500, detail="DMS did not return valid JSON")
+        raise HTTPException(status_code=500, detail="Invalid JSON returned by DMS")
 
-    # Construct full debug URL
-    composed_url = f"{search_url}?" + "&".join(
+    # Construct debug URL
+    composed_url = f"{dms_url}?" + "&".join(
         f"{key}={requests.utils.quote(str(val))}" for key, val in query_params.items()
     )
-    print(composed_url)
 
-    # Parse results
     items = []
     for item in data.get("items", []):
         props = {
@@ -76,9 +74,9 @@ def search_documents(
             for p in item.get("properties", [])
         }
         items.append(SearchResultItem(
-            id=item["id"],
+            id=item.get("id"),
             title=item.get("displayValue"),
             properties=props
         ))
-    print(SearchResponse(debug_url=composed_url, results=items).model_dump())
+
     return SearchResponse(debug_url=composed_url, results=items)
