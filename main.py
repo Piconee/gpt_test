@@ -69,10 +69,14 @@ def search_documents(
 
     items = []
     for item in data.get("items", []):
-        props = {
-            p["key"]: p["value"]
-            for p in item.get("displayProperties", [])
-        }
+        props = {}
+        for p in item.get("properties", []):
+            key = p.get("key")
+            value = p.get("value")
+            if key is not None:
+                props[key] = value
+            else:
+                print(f"Skipped malformed property: {p}")
         items.append(SearchResultItem(
             id=item.get("id"),
             title=item.get("displayValue"),
