@@ -68,7 +68,7 @@ def search_documents(
     )
 
     items = []
-    items_raw = data.get("results", {}).get("items", [])
+    items_raw = data.get("items", {})
     for item in items_raw:
         props = {
             p["key"]: p["value"]
