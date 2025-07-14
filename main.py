@@ -62,7 +62,7 @@ def search_documents(
     except Exception:
         raise HTTPException(status_code=500, detail="Invalid JSON returned by DMS")
 
-    # Construct debug URL
+    # Build the debug URL
     composed_url = f"{dms_url}?" + "&".join(
         f"{key}={requests.utils.quote(str(val))}" for key, val in query_params.items()
     )
@@ -71,7 +71,7 @@ def search_documents(
     for item in data.get("items", []):
         props = {
             p["key"]: p["value"]
-            for p in item.get("properties", [])
+            for p in item.get("displayProperties", [])
         }
         items.append(SearchResultItem(
             id=item.get("id"),
